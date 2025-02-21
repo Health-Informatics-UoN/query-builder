@@ -10,7 +10,10 @@ from sqlalchemy.sql.sqltypes import (
     FLOAT,
 )
 from datetime import date, datetime
-from utils import (
+
+# Ignore the error missing import below because this import was set up by pytest.ini file,
+# but MyPy can't recognise this
+from utils import (  # type: ignore
     cast_value,
     handle_between_condition,
     handle_contains_condition,
@@ -108,44 +111,78 @@ class TestCastValue:
         assert cast_value(mock_col, "1+2j") == "1+2j"
 
 
-def test_handle_between_condition():
-    column = Column("test_date", DATE)
-    value = '["2025-02-20", "2025-02-21"]'
-    condition = handle_between_condition(column, value)
-    assert str(condition) == "test_date BETWEEN :test_date_1 AND :test_date_2"
+class TestHandleBetween:
+    def test_handle_between_condition(self):
+        column = Column("test_date", DATE)
+        value = '["2025-02-20", "2025-02-21"]'
+        condition = handle_between_condition(column, value)
+        assert str(condition) == "test_date BETWEEN :test_date_1 AND :test_date_2"
+
+    def test_handle_between_condition_invalid_value(self):
+        column = Column("test_date", DATE)
+        invalid_value = '["2025-02-20"]'  # Only one value instead of two
+        with pytest.raises(
+            ValueError,
+            match="BETWEEN operator requires a list of two values.",
+        ):
+            handle_between_condition(column, invalid_value)
 
 
-def test_handle_contains_condition():
-    column = Column("test_str", NVARCHAR)
-    value = '["test1", "test2"]'
-    condition = handle_contains_condition(column, value)
-    assert str(condition) == "test_str = :test_str_1 OR test_str = :test_str_2"
+class TestHandleContains:
+    def test_handle_contains_condition(self):
+        column = Column("test_str", NVARCHAR)
+        value = '["test1", "test2"]'
+        condition = handle_contains_condition(column, value)
+        assert str(condition) == "test_str = :test_str_1 OR test_str = :test_str_2"
+
+    def test_handle_contains_invalid_condition(self):
+        column = Column("test_str", NVARCHAR)
+        invalid_value = '["test1"]'
+        with pytest.raises(
+            ValueError,
+            match="CONTAINS operator requires a list with at least 2 values separated by a comma.",
+        ):
+            handle_contains_condition(column, invalid_value)
 
 
-def test_building_filters():
-    column_schema = {
-        "test_int": Column("test_int", INTEGER),
-        "test_str": Column("test_str", NVARCHAR),
-        "test_date": Column("test_date", DATE),
-    }
-    conditions = [
-        {"column_name": "test_int", "operator": "=", "value": "123"},
-        {
-            "column_name": "test_str",
-            "operator": "contains",
-            "value": '["test1", "test2"]',
-        },
-        {
-            "column_name": "test_date",
-            "operator": "between",
-            "value": '["2025-02-20", "2025-02-21"]',
-        },
-    ]
-    filters = building_filters(column_schema, conditions)
-    assert len(filters) == 3
-    assert str(filters[0]) == "test_int = :test_int_1"
-    assert str(filters[1]) == "test_str = :test_str_1 OR test_str = :test_str_2"
-    assert str(filters[2]) == "test_date BETWEEN :test_date_1 AND :test_date_2"
+class TestBuildingFilters:
+    def test_building_filters(self):
+        column_schema = {
+            "test_int": Column("test_int", INTEGER),
+            "test_str": Column("test_str", NVARCHAR),
+            "test_date": Column("test_date", DATE),
+        }
+        conditions = [
+            {"column_name": "test_int", "operator": "=", "value": "123"},
+            {
+                "column_name": "test_str",
+                "operator": "contains",
+                "value": '["test1", "test2"]',
+            },
+            {
+                "column_name": "test_date",
+                "operator": "between",
+                "value": '["2025-02-20", "2025-02-21"]',
+            },
+        ]
+        filters = building_filters(column_schema, conditions)
+        assert len(filters) == 3
+        assert str(filters[0]) == "test_int = :test_int_1"
+        assert str(filters[1]) == "test_str = :test_str_1 OR test_str = :test_str_2"
+        assert str(filters[2]) == "test_date BETWEEN :test_date_1 AND :test_date_2"
+
+    def test_building_filters_unsupported_operator(self):
+        column_schema = {
+            "test_int": Column("test_int", INTEGER),
+        }
+        conditions = [
+            {"column_name": "test_int", "operator": "randomOperator", "value": "123"},
+        ]
+        with pytest.raises(
+            ValueError,
+            match="Unsupported operator: randomoperator",
+        ):
+            building_filters(column_schema, conditions)
 
 
 def test_forming_columns_schema():

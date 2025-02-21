@@ -47,7 +47,7 @@ def handle_between_condition(column: Column, value: str) -> ColumnExpressionArgu
     value_list = json.loads(value)
     # checking and casting
     if not isinstance(value_list, list) or len(value_list) != 2:
-        raise ValueError("BETWEEN operator requires a list of [start, end] values")
+        raise ValueError("BETWEEN operator requires a list of two values.")
     start_value = cast_value(column, value_list[0])
     end_value = cast_value(column, value_list[1])
     return between(column, start_value, end_value)
@@ -59,8 +59,10 @@ def handle_contains_condition(column: Column, value: str) -> ColumnExpressionArg
     value_list = json.loads(value)
     or_conditions = []
     # checking
-    if not isinstance(value_list, list):
-        raise ValueError("BETWEEN operator requires a list of [start, end] values")
+    if not isinstance(value_list, list) or len(value_list) < 2:
+        raise ValueError(
+            "CONTAINS operator requires a list with at least 2 values separated by a comma."
+        )
     for value in value_list:
         casted_value = cast_value(column, value)
         or_conditions.append(column == casted_value)

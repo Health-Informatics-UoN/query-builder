@@ -1,11 +1,8 @@
 name: Deploy UI app to Azure
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "ui-app/**"
+  release:
+    types: [released]
 
 env:
   AZURE_WEBAPP_PACKAGE_PATH: "./ui-app"
